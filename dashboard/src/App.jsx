@@ -454,7 +454,7 @@ function Leaderboard({ weekly, summary }) {
         )
       })}
 
-      {/* Grade legend */}
+      {/* Combined legend */}
       <div className="flex flex-wrap gap-2 pt-1 px-1">
         {GRADES.slice(0, 5).map(g => (
           <span
@@ -463,6 +463,15 @@ function Leaderboard({ weekly, summary }) {
             title={g.desc}
           >
             {g.label}
+          </span>
+        ))}
+        {AWARDS.map((award) => (
+          <span
+            key={award.id}
+            className="text-xs px-2 py-0.5 rounded font-medium bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-700/40"
+            title={award.description}
+          >
+            {award.emoji} {award.title}
           </span>
         ))}
       </div>
@@ -501,6 +510,20 @@ const AWARDS = [
     description: 'Completed 4+ sessions this week',
     check: ({ sessionCount }) => sessionCount >= 4,
   },
+  {
+    id: 'time-keeper',
+    title: 'Time Keeper',
+    emoji: '⏱️',
+    description: 'Reached 2+ total practice hours this week',
+    check: ({ totalMinutes }) => totalMinutes >= 120,
+  },
+  {
+    id: 'instrument-explorer',
+    title: 'Instrument Explorer',
+    emoji: '🎼',
+    description: 'Practiced 2+ instruments this week',
+    check: ({ instrumentCount }) => instrumentCount >= 2,
+  },
 ]
 
 function buildKidAwards(summary) {
@@ -514,7 +537,9 @@ function buildKidAwards(summary) {
       perUser.set(key, {
         name: key,
         todayMinutes: 0,
+        totalMinutes: 0,
         weekDaysSet: new Set(),
+        instrumentsSet: new Set(),
         longestSession: 0,
         sessionCount: 0,
       })
@@ -525,8 +550,10 @@ function buildKidAwards(summary) {
     const day = fmtDate(row.started_at)
 
     user.longestSession = Math.max(user.longestSession, mins)
+    user.totalMinutes += mins
     user.sessionCount += 1
     if (day !== '—') user.weekDaysSet.add(day)
+    if (row.instrument_name) user.instrumentsSet.add(row.instrument_name)
   }
 
   for (const row of todayLogs) {
@@ -535,7 +562,9 @@ function buildKidAwards(summary) {
       perUser.set(key, {
         name: key,
         todayMinutes: 0,
+        totalMinutes: 0,
         weekDaysSet: new Set(),
+        instrumentsSet: new Set(),
         longestSession: 0,
         sessionCount: 0,
       })
@@ -549,6 +578,7 @@ function buildKidAwards(summary) {
       const profile = {
         ...u,
         weekDays: u.weekDaysSet.size,
+        instrumentCount: u.instrumentsSet.size,
       }
       const earned = AWARDS.filter((a) => a.check(profile))
       return { ...profile, earned }
