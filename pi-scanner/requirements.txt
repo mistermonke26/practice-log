@@ -1,0 +1,14 @@
+# Core QR scanning
+opencv-python>=4.8.0
+
+# Optional but recommended for better QR detection reliability
+# Uncomment if opencv-python alone misses too many scans:
+# pyzbar>=0.1.10
+# On Raspberry Pi OS, also run: sudo apt install libzbar0
+
+# Dashboard (in capstone/dashboard/)
+flask>=3.0.0
+
+# QR card generation (in capstone/qr-cards/)
+qrcode[pil]>=7.4.0
+Pillow>=10.0.0

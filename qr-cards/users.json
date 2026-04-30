@@ -1,0 +1,8 @@
+[
+  { "name": "Jasmin",  "instrument": "piano" },
+  { "name": "Olivia",    "instrument": "piano" },
+  { "name": "Austin",    "instrument": "piano" },
+  { "name": "Jasmin",  "instrument": "violin" },
+  { "name": "Olivia",    "instrument": "violin" },
+  { "name": "Austin",    "instrument": "violin" }
+]
