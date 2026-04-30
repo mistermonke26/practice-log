@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm --prefix dashboard run build"
+    "build": "npm --prefix dashboard install && npm --prefix dashboard run build"
   },
   "dependencies": {
     "cors": "^2.8.5",
