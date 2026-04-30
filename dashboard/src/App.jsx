@@ -373,7 +373,7 @@ function getGrade(minutes) {
   return GRADES.find(g => minutes >= g.min) ?? GRADES.at(-1)
 }
 
-function Leaderboard({ weekly }) {
+function Leaderboard({ weekly, summary }) {
   // Aggregate total minutes per person (they may play multiple instruments)
   const map = {}
   for (const row of weekly) {
@@ -384,6 +384,9 @@ function Leaderboard({ weekly }) {
   }
   const ranked = Object.values(map).sort((a, b) => b.total - a.total)
   const max    = ranked[0]?.total || 1
+  const awardsByName = new Map(
+    buildKidAwards(summary).map((u) => [u.name, u.earned])
+  )
 
   return (
     <div className="space-y-2.5">
@@ -406,15 +409,32 @@ function Leaderboard({ weekly }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="min-w-0">
-                    <span className="font-semibold text-sm">{person.name}</span>
-                    <span className="text-xs text-muted-foreground ml-2 capitalize">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm">{person.name}</span>
+                      {(awardsByName.get(person.name) || []).map((award) => (
+                        <Badge
+                          key={award.id}
+                          variant="outline"
+                          className="text-[10px] h-5 px-1.5 bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-700/40"
+                          title={award.description}
+                        >
+                          {award.emoji} {award.title}
+                        </Badge>
+                      ))}
+                    </div>
+                    <span className="text-xs text-muted-foreground capitalize">
                       {person.instruments.join(', ')}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm font-semibold tabular-nums">{fmtDuration(person.total)}</span>
-                    <span className="text-xs font-bold px-1.5 py-0.5 rounded" title={grade.desc + ` · ${person.sessions} sessions`}>
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${grade.badge}`}>{grade.label}</span>
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-xs font-bold ${grade.badge}`}
+                        title={grade.desc}
+                      >
+                        {grade.label}
+                      </span>
                     </span>
                   </div>
                 </div>
@@ -427,7 +447,6 @@ function Leaderboard({ weekly }) {
                 </div>
                 <div className="flex justify-between mt-1">
                   <span className="text-xs text-muted-foreground">{person.sessions} session{person.sessions !== 1 ? 's' : ''}</span>
-                  <span className="text-xs text-muted-foreground">{grade.desc}</span>
                 </div>
               </div>
             </div>
@@ -438,13 +457,103 @@ function Leaderboard({ weekly }) {
       {/* Grade legend */}
       <div className="flex flex-wrap gap-2 pt-1 px-1">
         {GRADES.slice(0, 5).map(g => (
-          <span key={g.label} className={`text-xs px-2 py-0.5 rounded font-medium ${g.badge}`}>
-            {g.label} — {g.desc}
+          <span
+            key={g.label}
+            className={`text-xs px-2 py-0.5 rounded font-medium ${g.badge}`}
+            title={g.desc}
+          >
+            {g.label}
           </span>
         ))}
       </div>
     </div>
   )
+}
+
+// ── Awards ────────────────────────────────────────────────────────────────────
+
+const AWARDS = [
+  {
+    id: 'daily-spark',
+    title: 'Daily Spark',
+    emoji: '✨',
+    description: 'Practiced at least 15 minutes today',
+    check: ({ todayMinutes }) => todayMinutes >= 15,
+  },
+  {
+    id: 'consistency-star',
+    title: 'Consistency Star',
+    emoji: '🌟',
+    description: 'Practiced on 3+ different days this week',
+    check: ({ weekDays }) => weekDays >= 3,
+  },
+  {
+    id: 'focus-hero',
+    title: 'Focus Hero',
+    emoji: '🎯',
+    description: 'Completed a 30+ minute session this week',
+    check: ({ longestSession }) => longestSession >= 30,
+  },
+  {
+    id: 'practice-pal',
+    title: 'Practice Pal',
+    emoji: '🤝',
+    description: 'Completed 4+ sessions this week',
+    check: ({ sessionCount }) => sessionCount >= 4,
+  },
+]
+
+function buildKidAwards(summary) {
+  const weeklyDetails = summary?.weeklyDetails || []
+  const todayLogs = summary?.todayLogs || []
+  const perUser = new Map()
+
+  for (const row of weeklyDetails) {
+    const key = row.user_name || 'Unknown'
+    if (!perUser.has(key)) {
+      perUser.set(key, {
+        name: key,
+        todayMinutes: 0,
+        weekDaysSet: new Set(),
+        longestSession: 0,
+        sessionCount: 0,
+      })
+    }
+
+    const user = perUser.get(key)
+    const mins = Number(row.duration_minutes || 0)
+    const day = fmtDate(row.started_at)
+
+    user.longestSession = Math.max(user.longestSession, mins)
+    user.sessionCount += 1
+    if (day !== '—') user.weekDaysSet.add(day)
+  }
+
+  for (const row of todayLogs) {
+    const key = row.user_name || 'Unknown'
+    if (!perUser.has(key)) {
+      perUser.set(key, {
+        name: key,
+        todayMinutes: 0,
+        weekDaysSet: new Set(),
+        longestSession: 0,
+        sessionCount: 0,
+      })
+    }
+    const user = perUser.get(key)
+    user.todayMinutes += Number(row.duration_minutes || 0)
+  }
+
+  return Array.from(perUser.values())
+    .map((u) => {
+      const profile = {
+        ...u,
+        weekDays: u.weekDaysSet.size,
+      }
+      const earned = AWARDS.filter((a) => a.check(profile))
+      return { ...profile, earned }
+    })
+    .sort((a, b) => b.earned.length - a.earned.length || b.sessionCount - a.sessionCount)
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
@@ -553,14 +662,14 @@ export default function App() {
       </header>
 
       {/* ── Content ──────────────────────────────────────────────────────── */}
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 py-5 space-y-6">
 
         {/* Currently Practicing */}
         {summary?.openSessions?.length > 0 && (
           <section>
             <SectionHeader icon={<Clock />} title="Currently Practicing" />
             <Card>
-              <Table>
+              <Table className="text-xs [&_th]:h-8 [&_th]:px-2 [&_td]:px-2 [&_td]:py-2">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Person</TableHead>
@@ -586,54 +695,64 @@ export default function App() {
           </section>
         )}
 
-        {/* Today's Sessions */}
-        <section>
-          <SectionHeader icon={<CheckCircle2 />} title="Today's Sessions" />
-          {summary?.todayLogs?.length > 0 ? (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Person</TableHead>
-                    <TableHead>Instrument</TableHead>
-                    <TableHead>Start</TableHead>
-                    <TableHead>End</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {summary.todayLogs.map(log => (
-                    <TableRow key={log.id}>
-                      <TableCell className="font-medium">{log.user_name}</TableCell>
-                      <TableCell>{log.instrument_name}</TableCell>
-                      <TableCell className="text-muted-foreground tabular-nums">
-                        {fmtTime(log.started_at)}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground tabular-nums">
-                        {fmtTime(log.ended_at)}
-                      </TableCell>
-                      <TableCell className="font-medium tabular-nums">
-                        {fmtDuration(log.duration_minutes)}
-                      </TableCell>
-                      <TableCell><StatusBadge status={log.status} /></TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => setEditLog(log)}>
-                          Edit
-                        </Button>
-                      </TableCell>
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          {/* Today's Sessions */}
+          <section>
+            <SectionHeader icon={<CheckCircle2 />} title="Today's Sessions" />
+            {summary?.todayLogs?.length > 0 ? (
+              <Card>
+                <Table className="text-xs [&_th]:h-8 [&_th]:px-2 [&_td]:px-2 [&_td]:py-2">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Person</TableHead>
+                      <TableHead>Instrument</TableHead>
+                      <TableHead>Start</TableHead>
+                      <TableHead>End</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          ) : (
-            !loading && <EmptyState text="No sessions logged today." />
-          )}
-        </section>
+                  </TableHeader>
+                  <TableBody>
+                    {summary.todayLogs.map(log => (
+                      <TableRow key={log.id}>
+                        <TableCell className="font-medium">{log.user_name}</TableCell>
+                        <TableCell>{log.instrument_name}</TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {fmtTime(log.started_at)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {fmtTime(log.ended_at)}
+                        </TableCell>
+                        <TableCell className="font-medium tabular-nums">
+                          {fmtDuration(log.duration_minutes)}
+                        </TableCell>
+                        <TableCell><StatusBadge status={log.status} /></TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm" onClick={() => setEditLog(log)}>
+                            Edit
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            ) : (
+              !loading && <EmptyState text="No sessions logged today." />
+            )}
+          </section>
 
-        {/* This Week */}
+          {/* Leaderboard */}
+          <section>
+            <SectionHeader icon={<Trophy />} title={`Leaderboard — This Week${summary?.weekStart ? ` (${summary.weekStart} →)` : ''}`} />
+            {summary?.weekly?.length > 0
+              ? <Leaderboard weekly={summary.weekly} summary={summary} />
+              : !loading && <EmptyState text="No sessions this week yet." />
+            }
+          </section>
+        </div>
+
         <section>
           <SectionHeader
             icon={<CalendarDays />}
@@ -641,7 +760,7 @@ export default function App() {
           />
           {summary?.weekly?.length > 0 ? (
             <Card>
-              <Table>
+              <Table className="text-xs [&_th]:h-8 [&_th]:px-2 [&_td]:px-2 [&_td]:py-2">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Person</TableHead>
@@ -677,7 +796,7 @@ export default function App() {
                           <TableCell className="font-semibold tabular-nums">
                             {fmtDuration(row.total_minutes)}
                           </TableCell>
-                          <TableCell className="text-right pr-4">
+                          <TableCell className="text-right pr-2">
                             <ChevronDown
                               className={`w-4 h-4 text-muted-foreground inline transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`}
                             />
@@ -687,7 +806,7 @@ export default function App() {
                         {expanded && sessions.map(s => (
                           <TableRow key={s.id} className="bg-muted/30 hover:bg-muted/40">
                             <TableCell />
-                            <TableCell colSpan={2} className="text-xs text-muted-foreground pl-6 tabular-nums">
+                            <TableCell colSpan={2} className="text-xs text-muted-foreground pl-3 tabular-nums">
                               {fmtDate(s.started_at)} &nbsp;·&nbsp; {fmtTime(s.started_at)} – {fmtTime(s.ended_at)}
                             </TableCell>
                             <TableCell className="text-xs tabular-nums">
@@ -709,15 +828,6 @@ export default function App() {
           )}
         </section>
 
-        {/* Leaderboard */}
-        <section>
-          <SectionHeader icon={<Trophy />} title={`Leaderboard — This Week${summary?.weekStart ? ` (${summary.weekStart} →)` : ''}`} />
-          {summary?.weekly?.length > 0
-            ? <Leaderboard weekly={summary.weekly} />
-            : !loading && <EmptyState text="No sessions this week yet." />
-          }
-        </section>
-
         {/* Flagged */}
         {summary?.flagged?.length > 0 && (
           <section>
@@ -727,7 +837,7 @@ export default function App() {
               className="text-amber-600 dark:text-amber-400 [&>span]:text-amber-500"
             />
             <Card>
-              <Table>
+              <Table className="text-xs [&_th]:h-8 [&_th]:px-2 [&_td]:px-2 [&_td]:py-2">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Person</TableHead>
