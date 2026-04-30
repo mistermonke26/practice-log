@@ -14,20 +14,49 @@ app.use(cors())
 app.use(express.json())
 
 function pad(n) { return String(n).padStart(2, '0') }
+const EASTERN_TZ = 'America/New_York'
+
+function easternParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EASTERN_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    weekday: 'short',
+  }).formatToParts(date)
+
+  const get = (type) => parts.find((p) => p.type === type)?.value
+  const weekdayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute'),
+    second: get('second'),
+    weekday: weekdayMap[get('weekday')],
+  }
+}
+
 function nowStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  const d = easternParts()
+  return `${d.year}-${d.month}-${d.day} ${d.hour}:${d.minute}:${d.second}`
 }
 function todayStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  const d = easternParts()
+  return `${d.year}-${d.month}-${d.day}`
 }
 function weekStartStr() {
-  const d = new Date()
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  d.setDate(diff)
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  const d = easternParts()
+  const shifted = new Date(Date.UTC(Number(d.year), Number(d.month) - 1, Number(d.day)))
+  const diff = shifted.getUTCDate() - d.weekday + (d.weekday === 0 ? -6 : 1)
+  shifted.setUTCDate(diff)
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
 }
 function calcDuration(started_at, ended_at) {
   const ms = new Date(ended_at.replace(' ', 'T')) - new Date(started_at.replace(' ', 'T'))
