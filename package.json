@@ -1,0 +1,13 @@
+{
+  "name": "practice-log",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm --prefix dashboard run build"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "@supabase/supabase-js": "^2.50.3"
+  }
+}
