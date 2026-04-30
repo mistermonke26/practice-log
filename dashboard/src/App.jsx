@@ -47,8 +47,8 @@ function StatusBadge({ status }) {
 function SectionHeader({ icon, title, className = '' }) {
   return (
     <div className={`flex items-center gap-2 mb-3 ${className}`}>
-      {icon && <span className="w-4 h-4 text-muted-foreground">{icon}</span>}
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+      {icon && <span className="w-4 h-4 text-primary drop-shadow-sm">{icon}</span>}
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground/80">
         {title}
       </h2>
     </div>
@@ -395,7 +395,7 @@ function Leaderboard({ weekly, summary }) {
         const pct   = Math.round((person.total / max) * 100)
         const medal = MEDALS[i]
         return (
-          <div key={person.name} className={`rounded-xl border p-4 ${grade.card}`}>
+          <div key={person.name} className={`rounded-2xl border p-4 shadow-sm backdrop-blur-sm ${grade.card}`}>
             <div className="flex items-center gap-3">
               {/* Rank */}
               <div className="w-8 shrink-0 text-center">
@@ -427,7 +427,7 @@ function Leaderboard({ weekly, summary }) {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-semibold tabular-nums">{fmtDuration(person.total)}</span>
+                    <span className="text-sm font-semibold tabular-nums text-primary">{fmtDuration(person.total)}</span>
                     <span className="text-xs font-bold px-1.5 py-0.5 rounded">
                       <span
                         className={`px-1.5 py-0.5 rounded text-xs font-bold ${grade.badge}`}
@@ -439,7 +439,7 @@ function Leaderboard({ weekly, summary }) {
                   </div>
                 </div>
                 {/* Progress bar */}
-                <div className="h-1.5 w-full rounded-full bg-black/5 dark:bg-white/10 overflow-hidden">
+                <div className="h-2 w-full rounded-full bg-black/5 dark:bg-white/10 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${grade.bar}`}
                     style={{ width: `${pct}%` }}
@@ -657,13 +657,13 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background/70">
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-10 border-b bg-card/80 backdrop-blur-sm">
+      <header className="sticky top-0 z-10 border-b bg-card/70 backdrop-blur-xl shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-md">
               <Music2 className="w-4 h-4" />
             </div>
             <div>
