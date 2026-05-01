@@ -3,7 +3,7 @@ import jsQR from 'jsqr'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   Music2, RefreshCw, Plus, Clock, TriangleAlert, CheckCircle2,
-  CalendarDays, X, Trash2, ScanLine, ChevronDown, CheckCheck, Trophy,
+  CalendarDays, X, Trash2, ScanLine, ChevronDown, CheckCheck, Trophy, History,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -679,11 +679,15 @@ export default function App() {
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowScanner(true)}>
-              <ScanLine className="w-3.5 h-3.5" />
+            <Button
+              size="sm"
+              onClick={() => setShowScanner(true)}
+              className="bg-gradient-to-r from-violet-600 to-cyan-500 text-white shadow-md hover:brightness-110"
+            >
+              <ScanLine className="w-3.5 h-3.5 animate-pulse" />
               Scan
             </Button>
-            <Button size="sm" onClick={openAdd}>
+            <Button variant="outline" size="sm" onClick={openAdd}>
               <Plus className="w-3.5 h-3.5" />
               Add Session
             </Button>
@@ -916,6 +920,16 @@ export default function App() {
             </Card>
           </section>
         )}
+
+        <section className="pt-2 flex justify-center">
+          <Button
+            onClick={() => window.location.assign('/history')}
+            className="bg-gradient-to-r from-indigo-500 to-cyan-500 text-white shadow-md hover:brightness-110"
+          >
+            <History className="w-4 h-4" />
+            View Full History
+          </Button>
+        </section>
 
       </main>
 

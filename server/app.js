@@ -161,6 +161,21 @@ app.get('/api/logs/day/:date', async (req, res) => {
   }
 })
 
+app.get('/api/logs', async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '1000', 10), 1), 5000)
+    const { data, error } = await supabase
+      .from('practice_logs')
+      .select('*, users(name), instruments(name)')
+      .order('started_at', { ascending: false })
+      .limit(limit)
+    if (error) throw error
+    res.json((data || []).map(normalizeLogRow))
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to load logs' })
+  }
+})
+
 app.get('/api/users', async (_req, res) => {
   const { data, error } = await supabase.from('users').select('*').order('name', { ascending: true })
   if (error) return res.status(500).json({ error: error.message })
