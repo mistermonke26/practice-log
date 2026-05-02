@@ -467,9 +467,11 @@ export default function KioskPage() {
       <main className="mx-auto max-w-3xl px-4 py-3 sm:px-8">
         <header className="mb-4 rounded-2xl bg-white px-5 py-3 shadow-sm border border-slate-200">
           <div className="flex items-center justify-between gap-4">
-            <div>
+            <div className="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Practice Tracker</h1>
-              <p className="text-xs text-slate-500 mt-0.5">{dateText}</p>
+              <span className="text-[11px] sm:text-xs text-slate-500 font-semibold tabular-nums shrink-0">
+                {dateText}
+              </span>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -535,43 +537,6 @@ export default function KioskPage() {
           </div>
         </section>
 
-        {/* ── Today's Summary ─────────────────────────────────────── */}
-        {((summary?.todayLogs?.length || 0) > 0) ? (
-          <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm border border-slate-200">
-            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-              <CalendarDays className="h-4 w-4" />
-              Today's Practice
-            </div>
-            <div className="space-y-1.5">
-              {(() => {
-                const byPerson = {}
-                for (const log of (summary?.todayLogs || [])) {
-                  const name = log.user_name || 'Unknown'
-                  if (!byPerson[name]) byPerson[name] = { minutes: 0, sessions: 0, instruments: new Set() }
-                  byPerson[name].minutes += Number(log.duration_minutes || 0)
-                  byPerson[name].sessions += 1
-                  if (log.instrument_name) byPerson[name].instruments.add(log.instrument_name)
-                }
-                return Object.entries(byPerson)
-                  .sort((a, b) => b[1].minutes - a[1].minutes)
-                  .map(([name, data]) => (
-                    <div key={name} className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                      <div className="min-w-0">
-                        <span className="text-sm font-bold text-slate-800 block truncate">{name}</span>
-                        <span className="text-[10px] text-slate-500 uppercase tracking-tight">
-                          {Array.from(data.instruments).join(', ')} · {data.sessions} session{data.sessions !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <span className="text-sm font-black text-emerald-600 whitespace-nowrap ml-3">
-                        {fmtDuration(data.minutes)}
-                      </span>
-                    </div>
-                  ))
-              })()}
-            </div>
-          </section>
-        ) : null}
-
         {/* ── Currently Practicing ────────────────────────────────── */}
         <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm border border-slate-200">
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -591,11 +556,11 @@ export default function KioskPage() {
                 })
                 return (
                   <article key={session.id} className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-base font-bold truncate block leading-tight">{session.user_name}</span>
-                        <span className="text-[10px] text-slate-600 truncate block uppercase tracking-tight">{session.instrument_name} • {startedAt}</span>
-                      </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 flex-1 text-base font-bold text-slate-800 truncate tabular-nums">
+                        <span>{session.user_name}</span>
+                        <span className="text-slate-600 font-semibold">{` • ${session.instrument_name || '—'} • ${startedAt}`}</span>
+                      </p>
                       <p className="text-lg font-bold tabular-nums text-blue-600 whitespace-nowrap">{elapsed}</p>
                     </div>
                   </article>
@@ -604,6 +569,44 @@ export default function KioskPage() {
             </div>
           )}
         </section>
+
+        {/* ── Today's Summary ─────────────────────────────────────── */}
+        {((summary?.todayLogs?.length || 0) > 0) ? (
+          <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm border border-slate-200">
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <CalendarDays className="h-4 w-4" />
+              Today's Practice
+            </div>
+            <div className="space-y-1.5">
+              {(() => {
+                const byPerson = {}
+                for (const log of (summary?.todayLogs || [])) {
+                  const name = log.user_name || 'Unknown'
+                  if (!byPerson[name]) byPerson[name] = { minutes: 0, sessions: 0, instruments: new Set() }
+                  byPerson[name].minutes += Number(log.duration_minutes || 0)
+                  byPerson[name].sessions += 1
+                  if (log.instrument_name) byPerson[name].instruments.add(log.instrument_name)
+                }
+                return Object.entries(byPerson)
+                  .sort((a, b) => b[1].minutes - a[1].minutes)
+                  .map(([name, data]) => {
+                    const sub = `${Array.from(data.instruments).join(', ')} · ${data.sessions} session${data.sessions !== 1 ? 's' : ''}`
+                    return (
+                      <div key={name} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-2">
+                        <p className="min-w-0 flex-1 text-base font-bold text-slate-800 truncate tabular-nums">
+                          <span className="text-slate-800">{name}</span>
+                          <span className="text-slate-600 font-semibold">{` • ${sub}`}</span>
+                        </p>
+                        <span className="text-lg font-bold tabular-nums text-emerald-600 whitespace-nowrap">
+                          {fmtDuration(data.minutes)}
+                        </span>
+                      </div>
+                    )
+                  })
+              })()}
+            </div>
+          </section>
+        ) : null}
 
         <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200">
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
