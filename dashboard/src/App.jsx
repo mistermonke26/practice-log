@@ -3,8 +3,11 @@ import jsQR from 'jsqr'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   Music2, RefreshCw, Plus, Clock, TriangleAlert, CheckCircle2,
-  CalendarDays, X, Trash2, ScanLine, ChevronDown, CheckCheck, Trophy, History,
+  CalendarDays, X, Trash2, ScanLine, ChevronDown, CheckCheck, Trophy, History, Settings,
 } from 'lucide-react'
+import { apiUrl } from '@/lib/api'
+import { cameraAvailableInBrowser, insecureCameraHint } from '@/lib/camera'
+import SettingsModal from '@/components/SettingsModal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -238,6 +241,14 @@ function ScannerModal({ onClose, onScanned }) {
 
     async function start() {
       try {
+        if (!cameraAvailableInBrowser()) {
+          setCamError(
+            insecureCameraHint() ||
+              'Camera isn’t available in this tab (wrong URL or unsupported browser).',
+          )
+          return
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         })
@@ -279,7 +290,7 @@ function ScannerModal({ onClose, onScanned }) {
     clientCooldown.current[payload] = now
 
     try {
-      const res  = await fetch('/api/scan', {
+      const res = await fetch(await apiUrl('/api/scan'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payload }),
@@ -310,8 +321,12 @@ function ScannerModal({ onClose, onScanned }) {
         {camError ? (
           <div className="rounded-lg bg-destructive/10 text-destructive px-4 py-6 text-sm text-center space-y-1">
             <p className="font-medium">Camera unavailable</p>
-            <p className="text-xs opacity-80">{camError}</p>
-            <p className="text-xs opacity-60 mt-2">Allow camera access in your browser settings.</p>
+            <p className="text-xs opacity-90 leading-relaxed">{camError}</p>
+            {!insecureCameraHint() ? (
+              <p className="text-xs opacity-60 mt-2">Allow camera access in your browser settings.</p>
+            ) : (
+              <p className="text-xs opacity-60 mt-2">After switching to HTTPS, accept the certificate warning once for localhost dev.</p>
+            )}
           </div>
         ) : (
           <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
@@ -597,13 +612,14 @@ export default function App() {
   const [users,         setUsers]         = useState([])
   const [instruments,   setInstruments]   = useState([])
   const [expandedWeekly, setExpandedWeekly] = useState(new Set())
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => { refresh() }, [])
 
   async function refresh() {
     setLoading(true)
     try {
-      const res = await fetch('/api/summary')
+      const res = await fetch(await apiUrl('/api/summary'))
       setSummary(await res.json())
     } finally {
       setLoading(false)
@@ -612,8 +628,8 @@ export default function App() {
 
   async function loadRoster() {
     const [uRes, iRes] = await Promise.all([
-      fetch('/api/users'),
-      fetch('/api/instruments'),
+      fetch(await apiUrl('/api/users')),
+      fetch(await apiUrl('/api/instruments')),
     ])
     setUsers(await uRes.json())
     setInstruments(await iRes.json())
@@ -625,7 +641,7 @@ export default function App() {
   }
 
   async function saveEdit(id, data) {
-    await fetch(`/api/logs/${id}`, {
+    await fetch(await apiUrl(`/api/logs/${id}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -636,18 +652,18 @@ export default function App() {
 
   async function deleteLog(id) {
     if (!confirm('Delete this session?')) return
-    await fetch(`/api/logs/${id}`, { method: 'DELETE' })
+    await fetch(await apiUrl(`/api/logs/${id}`), { method: 'DELETE' })
     setEditLog(null)
     refresh()
   }
 
   async function approveLog(id) {
-    await fetch(`/api/logs/${id}/approve`, { method: 'POST' })
+    await fetch(await apiUrl(`/api/logs/${id}/approve`), { method: 'POST' })
     refresh()
   }
 
   async function addLog(data) {
-    await fetch('/api/logs', {
+    await fetch(await apiUrl('/api/logs'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -675,6 +691,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
+              <Settings className="w-3.5 h-3.5" />
+            </Button>
             <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               Refresh
@@ -923,7 +942,7 @@ export default function App() {
 
         <section className="pt-2 flex justify-center">
           <Button
-            onClick={() => window.location.assign('/history')}
+            onClick={() => window.location.assign('/admin/history')}
             className="bg-gradient-to-r from-indigo-500 to-cyan-500 text-white shadow-md hover:brightness-110"
           >
             <History className="w-4 h-4" />
@@ -956,6 +975,13 @@ export default function App() {
           instruments={instruments}
           onClose={() => setShowAdd(false)}
           onAdd={addLog}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onSaved={() => window.location.reload()}
         />
       )}
 

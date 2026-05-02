@@ -13,6 +13,11 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
+/** Confirms Express is reachable — no database (useful when debugging tablets / LAN). */
+app.get('/api/ping', (_req, res) => {
+  res.json({ ok: true })
+})
+
 function pad(n) { return String(n).padStart(2, '0') }
 const EASTERN_TZ = 'America/New_York'
 
@@ -73,7 +78,15 @@ function rangeForDate(dateStr) {
   return { start: `${dateStr} 00:00:00`, end: `${dateStr} 23:59:59` }
 }
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }))
+app.get('/api/health', async (_req, res) => {
+  try {
+    const { error } = await supabase.from('users').select('id').limit(1)
+    if (error) throw error
+    res.json({ ok: true })
+  } catch (error) {
+    res.status(503).json({ ok: false, error: error.message || 'Database unavailable' })
+  }
+})
 
 app.get('/api/summary', async (_req, res) => {
   try {
@@ -314,12 +327,29 @@ app.post('/api/scan', async (req, res) => {
       .from('active_sessions')
       .select('*')
       .eq('user_id', user.id)
-      .eq('instrument_id', instrument.id)
-      .maybeSingle()
+      .order('started_at', { ascending: false })
     if (activeRes.error) throw activeRes.error
-    const active = activeRes.data
+    const activeSessions = activeRes.data || []
+    const matchingActive = activeSessions.find((row) => row.instrument_id === instrument.id)
+    const otherActive = activeSessions.find((row) => row.instrument_id !== instrument.id)
 
-    if (!active) {
+    if (otherActive) {
+      const openInstrumentRes = await supabase
+        .from('instruments')
+        .select('name')
+        .eq('id', otherActive.instrument_id)
+        .maybeSingle()
+      if (openInstrumentRes.error) throw openInstrumentRes.error
+
+      return res.json({
+        action: 'blocked',
+        message: `${user.name} must end ${openInstrumentRes.data?.name || 'current'} first`,
+        user: user.name,
+        instrument: instrument.name,
+      })
+    }
+
+    if (!matchingActive) {
       const startInsert = await supabase.from('active_sessions').insert({
         user_id: user.id,
         instrument_id: instrument.id,
@@ -339,14 +369,14 @@ app.post('/api/scan', async (req, res) => {
       return res.json({ action: 'start', message: `${user.name} started ${instrument.name}`, user: user.name, instrument: instrument.name })
     }
 
-    const durationMin = (new Date(now.replace(' ', 'T')) - new Date(active.started_at.replace(' ', 'T'))) / 60000
+    const durationMin = (new Date(now.replace(' ', 'T')) - new Date(matchingActive.started_at.replace(' ', 'T'))) / 60000
     const status = durationMin < 1 ? 'suspicious' : 'complete'
     const rounded = Math.round(durationMin * 100) / 100
 
     const logInsert = await supabase.from('practice_logs').insert({
       user_id: user.id,
       instrument_id: instrument.id,
-      started_at: active.started_at,
+      started_at: matchingActive.started_at,
       ended_at: now,
       duration_minutes: rounded,
       status,
@@ -354,7 +384,7 @@ app.post('/api/scan', async (req, res) => {
     })
     if (logInsert.error) throw logInsert.error
 
-    const activeDelete = await supabase.from('active_sessions').delete().eq('id', active.id)
+    const activeDelete = await supabase.from('active_sessions').delete().eq('id', matchingActive.id)
     if (activeDelete.error) throw activeDelete.error
 
     const endScanInsert = await supabase.from('scan_events').insert({
