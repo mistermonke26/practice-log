@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Practice Tracker Kiosk</string>
+    <string name="title_activity_main">Practice Tracker Kiosk</string>
+    <string name="package_name">com.practice.tracker.kiosk</string>
+    <string name="custom_url_scheme">com.practice.tracker.kiosk</string>
+</resources>

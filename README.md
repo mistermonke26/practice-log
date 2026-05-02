@@ -4,6 +4,10 @@ A wall-mounted QR scanner that logs practice sessions automatically.
 Each person has one printed QR card. Scan to start, scan again to end.
 Everything runs locally on a Raspberry Pi — no internet, no apps, no typing.
 
+Current frontend modes:
+- `/admin` → full browser dashboard (for Vercel/browser management)
+- `/scan` (and `/`) → kiosk scanner UI for tablet use
+
 ---
 
 ## Project Structure
@@ -182,4 +186,36 @@ Use `Picamera2` instead. A Picamera2-compatible scanner variant is on the roadma
 Make sure port 5000 is not blocked by a firewall on the Pi:
 ```bash
 sudo ufw allow 5000
+```
+
+---
+
+## Android Kiosk App (Capacitor)
+
+The kiosk frontend can be packaged as a native Android app while still using the same backend API/database.
+
+1) Set your backend URL for tablet/web builds:
+```bash
+cd dashboard
+echo "VITE_API_BASE_URL=https://your-api-domain.com" > .env.local
+```
+
+2) Install dependencies:
+```bash
+npm install
+```
+
+3) Create Android project (one-time):
+```bash
+npm run android:add
+```
+
+4) Build and sync web assets into Android:
+```bash
+npm run android:sync
+```
+
+5) Open Android Studio and load the tablet:
+```bash
+npm run android:open
 ```
