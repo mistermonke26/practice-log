@@ -84,7 +84,7 @@ export default function SettingsModal({ onClose, onSaved }) {
             </p>
             <p className="text-sm text-slate-600 leading-relaxed">
               The <span className="font-bold">tablet app</span> is separate: set its API URL in Settings there (e.g.{' '}
-              <span className="font-mono text-xs whitespace-nowrap">http://192.168.5.65:3001</span>
+              <span className="font-mono text-xs whitespace-nowrap">https://practice-log-tau.vercel.app</span>
               ).
             </p>
             <Button
@@ -113,7 +113,9 @@ export default function SettingsModal({ onClose, onSaved }) {
                 spellCheck={false}
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="http://127.0.0.1:3001"
+                placeholder={
+                  nativeApp ? 'https://practice-log-tau.vercel.app' : 'Leave empty or set API URL…'
+                }
                 className="pl-10 h-12 rounded-xl border-slate-200 focus:ring-blue-500"
                 required={nativeApp}
                 disabled={loading}
@@ -121,8 +123,20 @@ export default function SettingsModal({ onClose, onSaved }) {
               />
             </div>
             <p className="text-xs text-slate-500 italic">
-              Must include <span className="font-mono whitespace-nowrap">http://</span> (two slashes).
-              Bare <span className="font-mono">192.168.x.x:3001</span> is OK — we add <span className="font-mono">http://</span> on save.
+              {nativeApp ? (
+                <>
+                  Production default:{' '}
+                  <span className="font-mono break-all text-slate-700">https://practice-log-tau.vercel.app</span>
+                  {' '}(HTTPS, no trailing slash). Local dev LAN:{' '}
+                  <span className="font-mono whitespace-nowrap">http://192.168.x.x:3001</span>.
+                </>
+              ) : (
+                <>
+                  Must include <span className="font-mono whitespace-nowrap">http://</span> or{' '}
+                  <span className="font-mono whitespace-nowrap">https://</span>. Bare IPs get{' '}
+                  <span className="font-mono">http://</span> added on save.
+                </>
+              )}
             </p>
             {normalizedPreview && normalizedPreview.trim() !== url.trim() ? (
               <p className="text-xs text-slate-700 font-medium">

@@ -490,22 +490,20 @@ export default function KioskPage() {
             <p className="mt-2 text-xs text-amber-700 font-medium">
               {reachIssue === 'db' ? (
                 <>
-                  The tablet reached your Mac/API, but <span className="font-bold">/api/health</span> failed
-                  (often Supabase keys or outbound network from the PC). Fix env on the server and check logs.
-                  {' '}
-                  If you only typo’d the URL, open <span className="font-bold">Settings</span> — use{' '}
-                  <span className="font-mono">http://192.168.x.x:3001</span> including <span className="font-mono">{'//'}</span>
-                  after <span className="font-mono">http:</span>.
+                  The tablet reached your server but <span className="font-bold">/api/health</span> failed
+                  — on Vercel set <span className="font-mono">SUPABASE_URL</span> /{' '}
+                  <span className="font-mono">SUPABASE_PUBLISHABLE_KEY</span> correctly and redeploy. Or open{' '}
+                  <span className="font-bold">Settings</span> and point to{' '}
+                  <span className="font-mono break-all text-[11px]">https://practice-log-tau.vercel.app</span>
+                  {' '}with no trailing slash.
                 </>
               ) : (
                 <>
                   Can’t reach the API (nothing answered on <span className="font-mono">…/api/ping</span>).
-                  Open <span className="font-bold">Settings ⚙</span> and set the URL —{' '}
-                  <span className="font-bold">Vercel (recommended):</span>{' '}
-                  <span className="font-mono text-[10px] break-all">https://your-app.vercel.app</span>{' '}
-                  works anywhere with internet, no port needed. Or same Wi‑Fi LAN:{' '}
-                  <span className="font-mono text-[10px]">http://192.168.x.x:3001</span>.
-                  No trailing slash.
+                  Open <span className="font-bold">Settings ⚙</span> — default is{' '}
+                  <span className="font-mono text-[10px] break-all">https://practice-log-tau.vercel.app</span>
+                  {' '}(HTTPS, production). LAN dev:{' '}
+                  <span className="font-mono text-[10px]">http://YOUR_MAC_IP:3001</span>. No trailing slash.
                 </>
               )}
             </p>

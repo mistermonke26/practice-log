@@ -40,9 +40,14 @@ export function normalizeApiBaseUrl(raw) {
   }
 }
 
+/** Embedded default when `npm run build` has no `VITE_API_BASE_URL` (tablet / production bundle). */
+const RELEASE_API_DEFAULT = 'https://practice-log-tau.vercel.app'
+
 const ENV_BASE =
   typeof import.meta.env.VITE_API_BASE_URL === 'string' ? import.meta.env.VITE_API_BASE_URL : ''
-const DEFAULT_NORMALIZED = normalizeApiBaseUrl(ENV_BASE) || ''
+const DEFAULT_NORMALIZED =
+  normalizeApiBaseUrl(ENV_BASE) ||
+  (import.meta.env.PROD ? normalizeApiBaseUrl(RELEASE_API_DEFAULT) : '')
 
 let cacheLoaded = false
 let cachedBase = ''
