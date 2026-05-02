@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import jsQR from 'jsqr'
-import { QrCode, Wifi, WifiOff, Clock3, Trophy, LoaderCircle, AlertTriangle, XCircle, CheckCircle2, Settings } from 'lucide-react'
+import { QrCode, Wifi, WifiOff, Clock3, Trophy, LoaderCircle, AlertTriangle, XCircle, CheckCircle2, Settings, CalendarDays } from 'lucide-react'
 import { apiUrl, needsApiSetup } from '@/lib/api'
 import { cameraAvailableInBrowser, insecureCameraHint } from '@/lib/camera'
 import SettingsModal from '@/components/SettingsModal'
@@ -499,13 +499,13 @@ export default function KioskPage() {
                 </>
               ) : (
                 <>
-                  Can’t reach the API at all (nothing answered on <span className="font-mono">…/api/ping</span>). On the{' '}
-                  <span className="font-bold">same Wi‑Fi</span>, open{' '}
-                  <span className="font-bold">Settings</span> and set{' '}
-                  <span className="font-mono whitespace-nowrap">http://YOUR_MAC_IP:3001</span>
-                  {' '}(two slashes). On the Mac: allow incoming connections for Node in{' '}
-                  <span className="font-bold">System Settings → Network → Firewall</span>, and confirm the API shows{' '}
-                  <span className="font-mono">0.0.0.0:3001</span> in the terminal.
+                  Can’t reach the API (nothing answered on <span className="font-mono">…/api/ping</span>).
+                  Open <span className="font-bold">Settings ⚙</span> and set the URL —{' '}
+                  <span className="font-bold">Vercel (recommended):</span>{' '}
+                  <span className="font-mono text-[10px] break-all">https://your-app.vercel.app</span>{' '}
+                  works anywhere with internet, no port needed. Or same Wi‑Fi LAN:{' '}
+                  <span className="font-mono text-[10px]">http://192.168.x.x:3001</span>.
+                  No trailing slash.
                 </>
               )}
             </p>
@@ -537,6 +537,44 @@ export default function KioskPage() {
           </div>
         </section>
 
+        {/* ── Today's Summary ─────────────────────────────────────── */}
+        {((summary?.todayLogs?.length || 0) > 0) ? (
+          <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm border border-slate-200">
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <CalendarDays className="h-4 w-4" />
+              Today's Practice
+            </div>
+            <div className="space-y-1.5">
+              {(() => {
+                const byPerson = {}
+                for (const log of (summary?.todayLogs || [])) {
+                  const name = log.user_name || 'Unknown'
+                  if (!byPerson[name]) byPerson[name] = { minutes: 0, sessions: 0, instruments: new Set() }
+                  byPerson[name].minutes += Number(log.duration_minutes || 0)
+                  byPerson[name].sessions += 1
+                  if (log.instrument_name) byPerson[name].instruments.add(log.instrument_name)
+                }
+                return Object.entries(byPerson)
+                  .sort((a, b) => b[1].minutes - a[1].minutes)
+                  .map(([name, data]) => (
+                    <div key={name} className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+                      <div className="min-w-0">
+                        <span className="text-sm font-bold text-slate-800 block truncate">{name}</span>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-tight">
+                          {Array.from(data.instruments).join(', ')} · {data.sessions} session{data.sessions !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <span className="text-sm font-black text-emerald-600 whitespace-nowrap ml-3">
+                        {fmtDuration(data.minutes)}
+                      </span>
+                    </div>
+                  ))
+              })()}
+            </div>
+          </section>
+        ) : null}
+
+        {/* ── Currently Practicing ────────────────────────────────── */}
         <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm border border-slate-200">
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
             <Clock3 className="h-4 w-4" />
