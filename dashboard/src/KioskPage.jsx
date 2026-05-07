@@ -14,6 +14,25 @@ function fmtDuration(mins) {
   if (h === 0) return `${m} min`
   return `${h}h ${m}m`
 }
+function dateOnly(dt) {
+  if (!dt) return null
+  return String(dt).slice(0, 10)
+}
+function getMaxStreak(dateSet) {
+  const dates = Array.from(dateSet || []).sort()
+  if (dates.length === 0) return 0
+  let best = 1
+  let run = 1
+  for (let i = 1; i < dates.length; i += 1) {
+    const prev = new Date(`${dates[i - 1]}T00:00:00`)
+    const curr = new Date(`${dates[i]}T00:00:00`)
+    const diffDays = Math.round((curr - prev) / 86400000)
+    if (diffDays === 1) run += 1
+    else run = 1
+    if (run > best) best = run
+  }
+  return best
+}
 function formatClock(diffMs) {
   const seconds = Math.max(0, Math.floor(diffMs / 1000))
   const h = Math.floor(seconds / 3600)
@@ -196,111 +215,54 @@ function ScanOverlay({ onClose, onResult, setScanState }) {
 
 // ── Awards Logic (Synced with Web Version) ───────────────────────────────────
 
-const AWARDS_BY_MODE = {
-  day: [
-    {
-      id: 'daily-spark',
-      title: 'Daily Spark',
-      emoji: '✨',
-      description: 'Practiced at least 15 minutes today',
-      check: ({ totalMinutes }) => totalMinutes >= 15,
-    },
-    {
-      id: 'focus-hero',
-      title: 'Focus Hero',
-      emoji: '🎯',
-      description: 'Completed a 30+ minute session today',
-      check: ({ longestSession }) => longestSession >= 30,
-    },
-    {
-      id: 'practice-pal',
-      title: 'Practice Pal',
-      emoji: '🤝',
-      description: 'Completed 2+ sessions today',
-      check: ({ sessionCount }) => sessionCount >= 2,
-    },
-  ],
-  week: [
-    {
-      id: 'consistency-star',
-      title: 'Consistency Star',
-      emoji: '🌟',
-      description: 'Practiced on 3+ different days this week',
-      check: ({ daysCount }) => daysCount >= 3,
-    },
-    {
-      id: 'focus-hero',
-      title: 'Focus Hero',
-      emoji: '🎯',
-      description: 'Completed a 30+ minute session this week',
-      check: ({ longestSession }) => longestSession >= 30,
-    },
-    {
-      id: 'practice-pal',
-      title: 'Practice Pal',
-      emoji: '🤝',
-      description: 'Completed 4+ sessions this week',
-      check: ({ sessionCount }) => sessionCount >= 4,
-    },
-    {
-      id: 'time-keeper',
-      title: 'Time Keeper',
-      emoji: '⏱️',
-      description: 'Reached 2+ total practice hours this week',
-      check: ({ totalMinutes }) => totalMinutes >= 120,
-    },
-    {
-      id: 'instrument-explorer',
-      title: 'Instrument Explorer',
-      emoji: '🎼',
-      description: 'Practiced 2+ instruments this week',
-      check: ({ instrumentCount }) => instrumentCount >= 2,
-    },
-  ],
-  month: [
+const AWARD_GUIDE = [
   {
     id: 'daily-spark',
     title: 'Daily Spark',
     emoji: '✨',
-    description: 'Practiced at least 15 minutes today',
-    check: ({ todayMinutes }) => todayMinutes >= 15,
+    description: 'Practiced at least a 15-minute session today',
+    check: ({ todayLongestSession }) => todayLongestSession >= 15,
+  },
+  {
+    id: 'balanced-player',
+    title: 'Balanced Player',
+    emoji: '🎼',
+    description: 'Practiced multiple instruments',
+    check: ({ instrumentCount }) => instrumentCount >= 2,
   },
   {
     id: 'consistency-star',
     title: 'Consistency Star',
     emoji: '🌟',
-    description: 'Practiced on 6+ different days this month',
-    check: ({ monthDays }) => monthDays >= 6,
+    description: 'Practiced 3 days in a row',
+    check: ({ maxStreak }) => maxStreak >= 3,
   },
   {
     id: 'focus-hero',
     title: 'Focus Hero',
     emoji: '🎯',
-    description: 'Completed a 60+ minute session this month',
-    check: ({ longestSession }) => longestSession >= 60,
+    description: 'Had a practice session that lasted 30+ minutes',
+    check: ({ longestSession }) => longestSession >= 30,
   },
   {
-    id: 'practice-pal',
-    title: 'Practice Pal',
+    id: 'practice-pals',
+    title: 'Practice Pals',
     emoji: '🤝',
-    description: 'Completed 12+ sessions this month',
-    check: ({ sessionCount }) => sessionCount >= 12,
+    description: 'All 3 people practiced on the same day',
+    check: ({ allThreePracticedSameDay }) => allThreePracticedSameDay,
   },
   {
-    id: 'time-keeper',
-    title: 'Time Keeper',
-    emoji: '⏱️',
-    description: 'Reached 6+ total practice hours this month',
-    check: ({ totalMinutes }) => totalMinutes >= 360,
+    id: 'marathon-master',
+    title: 'Marathon Master',
+    emoji: '🏃',
+    description: 'Practiced on 5+ days this week',
+    check: ({ daysCount }) => daysCount >= 5,
   },
-  {
-    id: 'instrument-explorer',
-    title: 'Instrument Explorer',
-    emoji: '🎼',
-    description: 'Practiced 3+ instruments this month',
-    check: ({ instrumentCount }) => instrumentCount >= 3,
-  },
-  ],
+]
+const AWARDS_BY_MODE = {
+  day: AWARD_GUIDE,
+  week: AWARD_GUIDE,
+  month: AWARD_GUIDE,
 }
 
 const LEADERBOARD_MODES = [
@@ -308,27 +270,6 @@ const LEADERBOARD_MODES = [
   { id: 'week', label: 'This Week' },
   { id: 'month', label: 'This Month' },
 ]
-const AWARD_GUIDE = [
-  {
-    id: 'daily-spark',
-    title: 'Daily Spark',
-    emoji: '✨',
-    description: 'Practiced at least 15 minutes today',
-  },
-  {
-    id: 'consistency-star',
-    title: 'Consistency Star',
-    emoji: '🌟',
-    description: 'Practiced on 3+ different days this week',
-  },
-  {
-    id: 'focus-hero',
-    title: 'Focus Hero',
-    emoji: '🎯',
-    description: 'Completed a 30+ minute session this week',
-  },
-]
-
 const GRADES_CONFIG = [
   { min: 300, label: 'S', desc: 'Champion', color: 'text-rose-500 border-rose-200 bg-rose-50' },
   { min: 150, label: 'A', desc: 'Star',     color: 'text-amber-500 border-amber-200 bg-amber-50' },
@@ -347,8 +288,7 @@ function buildKidAwards(rows, todayLogs, mode) {
   const today = todayLogs || []
   const awardsConfig = AWARDS_BY_MODE[mode] || AWARDS_BY_MODE.month
   const perUser = new Map()
-
-  const fmtDate = (dt) => dt ? dt.slice(0, 10) : '—'
+  const peopleByDay = new Map()
 
   for (const row of details) {
     const key = row.user_name || 'Unknown'
@@ -366,12 +306,16 @@ function buildKidAwards(rows, todayLogs, mode) {
 
     const user = perUser.get(key)
     const mins = Number(row.duration_minutes || 0)
-    const day = fmtDate(row.started_at)
+    const day = dateOnly(row.started_at)
 
     user.longestSession = Math.max(user.longestSession, mins)
     user.totalMinutes += mins
     user.sessionCount += 1
-    if (day !== '—') user.daysSet.add(day)
+    if (day) {
+      user.daysSet.add(day)
+      if (!peopleByDay.has(day)) peopleByDay.set(day, new Set())
+      peopleByDay.get(day).add(key)
+    }
     if (row.instrument_name) user.instrumentsSet.add(row.instrument_name)
   }
 
@@ -389,14 +333,25 @@ function buildKidAwards(rows, todayLogs, mode) {
       })
     }
     const user = perUser.get(key)
-    user.todayMinutes += Number(row.duration_minutes || 0)
+    const mins = Number(row.duration_minutes || 0)
+    const day = dateOnly(row.started_at) || dateOnly(new Date().toISOString())
+    user.todayMinutes += mins
+    user.todayLongestSession = Math.max(user.todayLongestSession || 0, mins)
+    if (day) {
+      user.daysSet.add(day)
+      if (!peopleByDay.has(day)) peopleByDay.set(day, new Set())
+      peopleByDay.get(day).add(key)
+    }
   }
+  const allThreePracticedSameDay = Array.from(peopleByDay.values()).some((set) => set.size >= 3)
 
   return Array.from(perUser.values()).map((u) => {
     const profile = {
       ...u,
       daysCount: u.daysSet.size,
+      maxStreak: getMaxStreak(u.daysSet),
       instrumentCount: u.instrumentsSet.size,
+      allThreePracticedSameDay,
     }
     const earned = awardsConfig.filter((a) => a.check(profile))
     return { ...profile, earned }
@@ -452,8 +407,11 @@ function buildProfilesFromAggregate(aggregateRows, todayLogs, mode) {
       sessionCount: p.sessionCount,
       instrumentCount: p.instrumentSet.size,
       daysCount: p.daysSet.size,
+      maxStreak: getMaxStreak(p.daysSet),
       longestSession: p.longestSession,
       todayMinutes: p.todayMinutes,
+      todayLongestSession: p.todayMinutes,
+      allThreePracticedSameDay: false,
     }
     const earned = awardsConfig.filter((a) => a.check(profile))
     return { ...profile, earned }
@@ -862,10 +820,14 @@ export default function KioskPage() {
               </div>
               <div className="space-y-2">
                 {AWARD_GUIDE.map(award => (
-                  <div key={award.id} className="flex items-center gap-2">
-                    <span className="text-xs leading-none">{award.emoji}</span>
-                    <span className="text-[10px] font-bold text-slate-500" title={award.description}>{award.title}</span>
-                  </div>
+                  <details key={award.id} className="group rounded-md border border-slate-200 bg-slate-50 px-2 py-1">
+                    <summary className="flex cursor-pointer list-none items-center gap-2">
+                      <span className="text-xs leading-none">{award.emoji}</span>
+                      <span className="text-[10px] font-bold text-slate-500">{award.title}</span>
+                      <span className="ml-auto text-[10px] text-slate-400">i</span>
+                    </summary>
+                    <p className="mt-1 text-[10px] text-slate-500">{award.description}</p>
+                  </details>
                 ))}
               </div>
             </div>

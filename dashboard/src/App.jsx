@@ -30,6 +30,25 @@ function fmtDuration(min) {
 
 function toInputDt(dt) { return dt ? dt.slice(0, 16).replace(' ', 'T') : '' }
 function toDbDt(dt)    { return dt ? dt.replace('T', ' ') + ':00' : '' }
+function dateOnly(dt) {
+  if (!dt) return null
+  return String(dt).slice(0, 10)
+}
+function getMaxStreak(dateSet) {
+  const dates = Array.from(dateSet || []).sort()
+  if (dates.length === 0) return 0
+  let best = 1
+  let run = 1
+  for (let i = 1; i < dates.length; i += 1) {
+    const prev = new Date(`${dates[i - 1]}T00:00:00`)
+    const curr = new Date(`${dates[i]}T00:00:00`)
+    const diffDays = Math.round((curr - prev) / 86400000)
+    if (diffDays === 1) run += 1
+    else run = 1
+    if (run > best) best = run
+  }
+  return best
+}
 
 const STATUS_BADGE = {
   complete:   'success',
@@ -388,6 +407,50 @@ const LEADERBOARD_MODES = [
   { id: 'week', label: 'This Week' },
   { id: 'month', label: 'This Month' },
 ]
+const AWARD_GUIDE = [
+  {
+    id: 'daily-spark',
+    title: 'Daily Spark',
+    emoji: '✨',
+    description: 'Practiced at least a 15-minute session today',
+    check: ({ todayLongestSession }) => todayLongestSession >= 15,
+  },
+  {
+    id: 'balanced-player',
+    title: 'Balanced Player',
+    emoji: '🎼',
+    description: 'Practiced multiple instruments',
+    check: ({ instrumentCount }) => instrumentCount >= 2,
+  },
+  {
+    id: 'consistency-star',
+    title: 'Consistency Star',
+    emoji: '🌟',
+    description: 'Practiced 3 days in a row',
+    check: ({ maxStreak }) => maxStreak >= 3,
+  },
+  {
+    id: 'focus-hero',
+    title: 'Focus Hero',
+    emoji: '🎯',
+    description: 'Had a practice session that lasted 30+ minutes',
+    check: ({ longestSession }) => longestSession >= 30,
+  },
+  {
+    id: 'practice-pals',
+    title: 'Practice Pals',
+    emoji: '🤝',
+    description: 'All 3 people practiced on the same day',
+    check: ({ allThreePracticedSameDay }) => allThreePracticedSameDay,
+  },
+  {
+    id: 'marathon-master',
+    title: 'Marathon Master',
+    emoji: '🏃',
+    description: 'Practiced on 5+ days this week',
+    check: ({ daysCount }) => daysCount >= 5,
+  },
+]
 
 function getGrade(minutes) {
   return GRADES.find(g => minutes >= g.min) ?? GRADES.at(-1)
@@ -462,26 +525,30 @@ function Leaderboard({ ranked, awardsByName }) {
         )
       })}
 
-      {/* Combined legend */}
-      <div className="flex flex-wrap gap-2 pt-1 px-1">
-        {GRADES.slice(0, 5).map(g => (
-          <span
-            key={g.label}
-            className={`text-xs px-2 py-0.5 rounded font-medium ${g.badge}`}
-            title={g.desc}
-          >
-            {g.label}
-          </span>
-        ))}
-        {AWARDS.map((award) => (
-          <span
-            key={award.id}
-            className="text-xs px-2 py-0.5 rounded font-medium bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-700/40"
-            title={award.description}
-          >
-            {award.emoji} {award.title}
-          </span>
-        ))}
+      <div className="mt-4 border-t pt-3">
+        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Award Guide</h3>
+        <div className="flex flex-wrap gap-2">
+          {GRADES.slice(0, 4).map((g) => (
+            <span
+              key={g.label}
+              className={`text-xs px-2 py-0.5 rounded font-medium ${g.badge}`}
+              title={g.desc}
+            >
+              {g.label}
+            </span>
+          ))}
+          {AWARD_GUIDE.map((award) => (
+            <details
+              key={award.id}
+              className="group rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium dark:border-green-700/40 dark:bg-green-900/20"
+            >
+              <summary className="cursor-pointer list-none">
+                {award.emoji} {award.title} <span className="text-[10px] opacity-60">i</span>
+              </summary>
+              <p className="mt-1 text-[10px] text-muted-foreground">{award.description}</p>
+            </details>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -489,34 +556,11 @@ function Leaderboard({ ranked, awardsByName }) {
 
 // ── Awards ────────────────────────────────────────────────────────────────────
 
-const AWARDS = [
-  {
-    id: 'daily-spark',
-    title: 'Daily Spark',
-    emoji: '✨',
-    description: 'Practiced at least 15 minutes today',
-    check: ({ todayMinutes }) => todayMinutes >= 15,
-  },
-  {
-    id: 'consistency-star',
-    title: 'Consistency Star',
-    emoji: '🌟',
-    description: 'Practiced on 3+ different days this week',
-    check: ({ weekDays }) => weekDays >= 3,
-  },
-  {
-    id: 'focus-hero',
-    title: 'Focus Hero',
-    emoji: '🎯',
-    description: 'Completed a 30+ minute session this week',
-    check: ({ longestSession }) => longestSession >= 30,
-  },
-]
-
 function buildKidAwards(rows, todayLogs) {
   const details = rows || []
   const today = todayLogs || []
   const perUser = new Map()
+  const peopleByDay = new Map()
 
   for (const row of details) {
     const key = row.user_name || 'Unknown'
@@ -534,12 +578,16 @@ function buildKidAwards(rows, todayLogs) {
 
     const user = perUser.get(key)
     const mins = Number(row.duration_minutes || 0)
-    const day = fmtDate(row.started_at)
+    const day = dateOnly(row.started_at)
 
     user.longestSession = Math.max(user.longestSession, mins)
     user.totalMinutes += mins
     user.sessionCount += 1
-    if (day !== '—') user.daysSet.add(day)
+    if (day) {
+      user.daysSet.add(day)
+      if (!peopleByDay.has(day)) peopleByDay.set(day, new Set())
+      peopleByDay.get(day).add(key)
+    }
     if (row.instrument_name) user.instrumentsSet.add(row.instrument_name)
   }
 
@@ -557,17 +605,28 @@ function buildKidAwards(rows, todayLogs) {
       })
     }
     const user = perUser.get(key)
-    user.todayMinutes += Number(row.duration_minutes || 0)
+    const mins = Number(row.duration_minutes || 0)
+    const day = dateOnly(row.started_at) || dateOnly(new Date().toISOString())
+    user.todayMinutes += mins
+    user.todayLongestSession = Math.max(user.todayLongestSession || 0, mins)
+    if (day) {
+      user.daysSet.add(day)
+      if (!peopleByDay.has(day)) peopleByDay.set(day, new Set())
+      peopleByDay.get(day).add(key)
+    }
   }
+  const allThreePracticedSameDay = Array.from(peopleByDay.values()).some((set) => set.size >= 3)
 
   return Array.from(perUser.values())
     .map((u) => {
       const profile = {
         ...u,
-        weekDays: u.daysSet.size,
+        maxStreak: getMaxStreak(u.daysSet),
+        daysCount: u.daysSet.size,
         instrumentCount: u.instrumentsSet.size,
+        allThreePracticedSameDay,
       }
-      const earned = AWARDS.filter((a) => a.check(profile))
+      const earned = AWARD_GUIDE.filter((a) => a.check(profile))
       return { ...profile, earned }
     })
     .sort((a, b) => b.earned.length - a.earned.length || b.sessionCount - a.sessionCount)
