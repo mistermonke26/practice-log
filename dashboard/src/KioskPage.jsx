@@ -196,7 +196,68 @@ function ScanOverlay({ onClose, onResult, setScanState }) {
 
 // ── Awards Logic (Synced with Web Version) ───────────────────────────────────
 
-const AWARDS_CONFIG = [
+const AWARDS_BY_MODE = {
+  day: [
+    {
+      id: 'daily-spark',
+      title: 'Daily Spark',
+      emoji: '✨',
+      description: 'Practiced at least 15 minutes today',
+      check: ({ totalMinutes }) => totalMinutes >= 15,
+    },
+    {
+      id: 'focus-hero',
+      title: 'Focus Hero',
+      emoji: '🎯',
+      description: 'Completed a 30+ minute session today',
+      check: ({ longestSession }) => longestSession >= 30,
+    },
+    {
+      id: 'practice-pal',
+      title: 'Practice Pal',
+      emoji: '🤝',
+      description: 'Completed 2+ sessions today',
+      check: ({ sessionCount }) => sessionCount >= 2,
+    },
+  ],
+  week: [
+    {
+      id: 'consistency-star',
+      title: 'Consistency Star',
+      emoji: '🌟',
+      description: 'Practiced on 3+ different days this week',
+      check: ({ daysCount }) => daysCount >= 3,
+    },
+    {
+      id: 'focus-hero',
+      title: 'Focus Hero',
+      emoji: '🎯',
+      description: 'Completed a 30+ minute session this week',
+      check: ({ longestSession }) => longestSession >= 30,
+    },
+    {
+      id: 'practice-pal',
+      title: 'Practice Pal',
+      emoji: '🤝',
+      description: 'Completed 4+ sessions this week',
+      check: ({ sessionCount }) => sessionCount >= 4,
+    },
+    {
+      id: 'time-keeper',
+      title: 'Time Keeper',
+      emoji: '⏱️',
+      description: 'Reached 2+ total practice hours this week',
+      check: ({ totalMinutes }) => totalMinutes >= 120,
+    },
+    {
+      id: 'instrument-explorer',
+      title: 'Instrument Explorer',
+      emoji: '🎼',
+      description: 'Practiced 2+ instruments this week',
+      check: ({ instrumentCount }) => instrumentCount >= 2,
+    },
+  ],
+  month: [
   {
     id: 'daily-spark',
     title: 'Daily Spark',
@@ -208,38 +269,46 @@ const AWARDS_CONFIG = [
     id: 'consistency-star',
     title: 'Consistency Star',
     emoji: '🌟',
-    description: 'Practiced on 3+ different days this week',
-    check: ({ weekDays }) => weekDays >= 3,
+    description: 'Practiced on 6+ different days this month',
+    check: ({ monthDays }) => monthDays >= 6,
   },
   {
     id: 'focus-hero',
     title: 'Focus Hero',
     emoji: '🎯',
-    description: 'Completed a 30+ minute session this week',
-    check: ({ longestSession }) => longestSession >= 30,
+    description: 'Completed a 60+ minute session this month',
+    check: ({ longestSession }) => longestSession >= 60,
   },
   {
     id: 'practice-pal',
     title: 'Practice Pal',
     emoji: '🤝',
-    description: 'Completed 4+ sessions this week',
-    check: ({ sessionCount }) => sessionCount >= 4,
+    description: 'Completed 12+ sessions this month',
+    check: ({ sessionCount }) => sessionCount >= 12,
   },
   {
     id: 'time-keeper',
     title: 'Time Keeper',
     emoji: '⏱️',
-    description: 'Reached 2+ total practice hours this week',
-    check: ({ totalMinutes }) => totalMinutes >= 120,
+    description: 'Reached 6+ total practice hours this month',
+    check: ({ totalMinutes }) => totalMinutes >= 360,
   },
   {
     id: 'instrument-explorer',
     title: 'Instrument Explorer',
     emoji: '🎼',
-    description: 'Practiced 2+ instruments this week',
-    check: ({ instrumentCount }) => instrumentCount >= 2,
+    description: 'Practiced 3+ instruments this month',
+    check: ({ instrumentCount }) => instrumentCount >= 3,
   },
+  ],
+}
+
+const LEADERBOARD_MODES = [
+  { id: 'day', label: 'Today' },
+  { id: 'week', label: 'This Week' },
+  { id: 'month', label: 'This Month' },
 ]
+const AWARD_GUIDE = AWARDS_BY_MODE.month
 
 const GRADES_CONFIG = [
   { min: 300, label: 'S', desc: 'Champion', color: 'text-rose-500 border-rose-200 bg-rose-50' },
@@ -254,21 +323,22 @@ function getGrade(minutes) {
   return GRADES_CONFIG.find(g => minutes >= g.min) ?? GRADES_CONFIG.at(-1)
 }
 
-function buildKidAwards(summary) {
-  const weeklyDetails = summary?.weeklyDetails || []
-  const todayLogs = summary?.todayLogs || []
+function buildKidAwards(rows, todayLogs, mode) {
+  const details = rows || []
+  const today = todayLogs || []
+  const awardsConfig = AWARDS_BY_MODE[mode] || AWARDS_BY_MODE.month
   const perUser = new Map()
 
   const fmtDate = (dt) => dt ? dt.slice(0, 10) : '—'
 
-  for (const row of weeklyDetails) {
+  for (const row of details) {
     const key = row.user_name || 'Unknown'
     if (!perUser.has(key)) {
       perUser.set(key, {
         name: key,
         todayMinutes: 0,
         totalMinutes: 0,
-        weekDaysSet: new Set(),
+        daysSet: new Set(),
         instrumentsSet: new Set(),
         longestSession: 0,
         sessionCount: 0,
@@ -282,18 +352,18 @@ function buildKidAwards(summary) {
     user.longestSession = Math.max(user.longestSession, mins)
     user.totalMinutes += mins
     user.sessionCount += 1
-    if (day !== '—') user.weekDaysSet.add(day)
+    if (day !== '—') user.daysSet.add(day)
     if (row.instrument_name) user.instrumentsSet.add(row.instrument_name)
   }
 
-  for (const row of todayLogs) {
+  for (const row of today) {
     const key = row.user_name || 'Unknown'
     if (!perUser.has(key)) {
       perUser.set(key, {
         name: key,
         todayMinutes: 0,
         totalMinutes: 0,
-        weekDaysSet: new Set(),
+        daysSet: new Set(),
         instrumentsSet: new Set(),
         longestSession: 0,
         sessionCount: 0,
@@ -306,10 +376,67 @@ function buildKidAwards(summary) {
   return Array.from(perUser.values()).map((u) => {
     const profile = {
       ...u,
-      weekDays: u.weekDaysSet.size,
+      daysCount: u.daysSet.size,
       instrumentCount: u.instrumentsSet.size,
     }
-    const earned = AWARDS_CONFIG.filter((a) => a.check(profile))
+    const earned = awardsConfig.filter((a) => a.check(profile))
+    return { ...profile, earned }
+  })
+}
+
+function buildProfilesFromAggregate(aggregateRows, todayLogs, mode) {
+  const rows = aggregateRows || []
+  const today = todayLogs || []
+  const byPerson = new Map()
+
+  for (const row of rows) {
+    const name = row.user_name || 'Unknown'
+    if (!byPerson.has(name)) {
+      byPerson.set(name, {
+        name,
+        totalMinutes: 0,
+        sessionCount: 0,
+        instrumentSet: new Set(),
+        daysSet: new Set(),
+        longestSession: 0,
+        todayMinutes: 0,
+      })
+    }
+    const p = byPerson.get(name)
+    p.totalMinutes += Number(row.total_minutes || row.duration_minutes || 0)
+    p.sessionCount += Number(row.session_count || 1)
+    if (row.instrument_name) p.instrumentSet.add(row.instrument_name)
+  }
+
+  for (const row of today) {
+    const name = row.user_name || 'Unknown'
+    if (!byPerson.has(name)) {
+      byPerson.set(name, {
+        name,
+        totalMinutes: 0,
+        sessionCount: 0,
+        instrumentSet: new Set(),
+        daysSet: new Set(),
+        longestSession: 0,
+        todayMinutes: 0,
+      })
+    }
+    const p = byPerson.get(name)
+    p.todayMinutes += Number(row.duration_minutes || 0)
+  }
+
+  const awardsConfig = AWARDS_BY_MODE[mode] || AWARDS_BY_MODE.month
+  return Array.from(byPerson.values()).map((p) => {
+    const profile = {
+      name: p.name,
+      totalMinutes: p.totalMinutes,
+      sessionCount: p.sessionCount,
+      instrumentCount: p.instrumentSet.size,
+      daysCount: p.daysSet.size,
+      longestSession: p.longestSession,
+      todayMinutes: p.todayMinutes,
+    }
+    const earned = awardsConfig.filter((a) => a.check(profile))
     return { ...profile, earned }
   })
 }
@@ -325,6 +452,7 @@ export default function KioskPage() {
   const [now, setNow] = useState(Date.now())
   const [alert, setAlert] = useState(null) // { title, message, type: 'error' | 'success' | 'warning' }
   const [showSettings, setShowSettings] = useState(false)
+  const [leaderMode, setLeaderMode] = useState('week')
   /** `no_tcp` = cannot load /api/ping; `db` = ping OK but /api/health failed (often Supabase from the Mac). */
   const [reachIssue, setReachIssue] = useState(null)
 
@@ -400,18 +528,44 @@ export default function KioskPage() {
     }
   }, [refresh])
 
+  const leaderboardProfiles = useMemo(() => {
+    if (leaderMode === 'day') {
+      return buildKidAwards(summary?.todayLogs || [], summary?.todayLogs || [], 'day')
+    }
+
+    if (leaderMode === 'week') {
+      const weeklyAgg = summary?.weekly || []
+      if (weeklyAgg.length > 0) {
+        return buildProfilesFromAggregate(weeklyAgg, summary?.todayLogs || [], 'week')
+      }
+      return buildKidAwards(summary?.weeklyDetails || [], summary?.todayLogs || [], 'week')
+    }
+
+    const monthlyAgg = summary?.monthly || []
+    if (monthlyAgg.length > 0) {
+      return buildProfilesFromAggregate(monthlyAgg, summary?.todayLogs || [], 'month')
+    }
+    if ((summary?.monthlyDetails || []).length > 0) {
+      return buildKidAwards(summary?.monthlyDetails || [], summary?.todayLogs || [], 'month')
+    }
+    // Older backend fallback
+    if ((summary?.weekly || []).length > 0) {
+      return buildProfilesFromAggregate(summary?.weekly || [], summary?.todayLogs || [], 'month')
+    }
+    return buildKidAwards(summary?.weeklyDetails || [], summary?.todayLogs || [], 'month')
+  }, [summary, leaderMode])
+
   const leaderboardTop3 = useMemo(() => {
-    const kidAwards = buildKidAwards(summary)
-    return kidAwards
+    return leaderboardProfiles
       .map((kid) => ({
         name: kid.name,
-        total: kid.totalMinutes,
-        grade: getGrade(kid.totalMinutes),
+        total: Number(kid.totalMinutes || 0),
+        grade: getGrade(Number(kid.totalMinutes || 0)),
         awards: kid.earned
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 5)
-  }, [summary])
+  }, [leaderboardProfiles])
 
   const maxLeaderMinutes = Math.max(1, ...leaderboardTop3.map((p) => p.total))
   const dateText = new Date().toLocaleDateString('en-US', {
@@ -613,6 +767,22 @@ export default function KioskPage() {
             <Trophy className="h-4 w-4" />
             Leaderboard
           </div>
+          <div className="mb-3 grid grid-cols-3 gap-1.5 rounded-xl bg-slate-100 p-1">
+            {LEADERBOARD_MODES.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                onClick={() => setLeaderMode(mode.id)}
+                className={`rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-wide transition ${
+                  leaderMode === mode.id
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 active:bg-slate-200'
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
           <div className="space-y-2">
             {leaderboardTop3.map((entry, index) => {
               const pct = Math.round((entry.total / maxLeaderMinutes) * 100)
@@ -654,7 +824,9 @@ export default function KioskPage() {
               )
             })}
             {!loading && leaderboardTop3.length === 0 ? (
-              <p className="rounded-xl bg-slate-100 px-4 py-3 text-center text-xs text-slate-500 italic">No sessions this week</p>
+              <p className="rounded-xl bg-slate-100 px-4 py-3 text-center text-xs text-slate-500 italic">
+                {leaderMode === 'day' ? 'No sessions today' : leaderMode === 'week' ? 'No sessions this week' : 'No sessions this month'}
+              </p>
             ) : null}
           </div>
 
@@ -670,7 +842,7 @@ export default function KioskPage() {
                 ))}
               </div>
               <div className="space-y-2">
-                {AWARDS_CONFIG.slice(0, 4).map(award => (
+                {AWARD_GUIDE.slice(0, 4).map(award => (
                   <div key={award.id} className="flex items-center gap-2">
                     <span className="text-xs leading-none">{award.emoji}</span>
                     <span className="text-[10px] font-bold text-slate-500" title={award.description}>{award.title}</span>

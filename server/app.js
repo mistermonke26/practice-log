@@ -63,6 +63,10 @@ function weekStartStr() {
   shifted.setUTCDate(diff)
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
 }
+function monthStartStr() {
+  const d = easternParts()
+  return `${d.year}-${d.month}-01`
+}
 function calcDuration(started_at, ended_at) {
   const ms = new Date(ended_at.replace(' ', 'T')) - new Date(started_at.replace(' ', 'T'))
   return Math.round((ms / 60000) * 100) / 100
@@ -92,10 +96,12 @@ app.get('/api/summary', async (_req, res) => {
   try {
     const today = todayStr()
     const weekStart = weekStartStr()
+    const monthStart = monthStartStr()
     const todayRange = rangeForDate(today)
     const weekRange = { start: `${weekStart} 00:00:00`, end: `${today} 23:59:59` }
+    const monthRange = { start: `${monthStart} 00:00:00`, end: `${today} 23:59:59` }
 
-    const [todayLogsRes, weeklyDetailsRes, openSessionsRes, flaggedRes] = await Promise.all([
+    const [todayLogsRes, weeklyDetailsRes, monthlyDetailsRes, openSessionsRes, flaggedRes] = await Promise.all([
       supabase
         .from('practice_logs')
         .select('*, users(name), instruments(name)')
@@ -109,6 +115,12 @@ app.get('/api/summary', async (_req, res) => {
         .lte('started_at', weekRange.end)
         .order('started_at', { ascending: false }),
       supabase
+        .from('practice_logs')
+        .select('id, user_id, instrument_id, started_at, ended_at, duration_minutes, status, users(name), instruments(name)')
+        .gte('started_at', monthRange.start)
+        .lte('started_at', monthRange.end)
+        .order('started_at', { ascending: false }),
+      supabase
         .from('active_sessions')
         .select('*, users(name), instruments(name)')
         .order('started_at', { ascending: true }),
@@ -120,12 +132,13 @@ app.get('/api/summary', async (_req, res) => {
         .limit(50),
     ])
 
-    for (const r of [todayLogsRes, weeklyDetailsRes, openSessionsRes, flaggedRes]) {
+    for (const r of [todayLogsRes, weeklyDetailsRes, monthlyDetailsRes, openSessionsRes, flaggedRes]) {
       if (r.error) throw r.error
     }
 
     const todayLogs = (todayLogsRes.data || []).map(normalizeLogRow)
     const weeklyDetails = (weeklyDetailsRes.data || []).map(normalizeLogRow)
+    const monthlyDetails = (monthlyDetailsRes.data || []).map(normalizeLogRow)
     const openSessions = (openSessionsRes.data || []).map((row) => ({
       ...row,
       user_name: row.users?.name || null,
@@ -152,7 +165,37 @@ app.get('/api/summary', async (_req, res) => {
       .map((r) => ({ ...r, total_minutes: Math.round(r.total_minutes * 10) / 10 }))
       .sort((a, b) => b.total_minutes - a.total_minutes)
 
-    res.json({ today, weekStart, todayLogs, weekly, weeklyDetails, openSessions, flagged })
+    const monthlyMap = new Map()
+    for (const row of monthlyDetails) {
+      const key = `${row.user_id}::${row.instrument_id}`
+      if (!monthlyMap.has(key)) {
+        monthlyMap.set(key, {
+          user_name: row.user_name,
+          instrument_name: row.instrument_name,
+          total_minutes: 0,
+          session_count: 0,
+        })
+      }
+      const agg = monthlyMap.get(key)
+      agg.total_minutes += Number(row.duration_minutes || 0)
+      agg.session_count += 1
+    }
+    const monthly = Array.from(monthlyMap.values())
+      .map((r) => ({ ...r, total_minutes: Math.round(r.total_minutes * 10) / 10 }))
+      .sort((a, b) => b.total_minutes - a.total_minutes)
+
+    res.json({
+      today,
+      weekStart,
+      monthStart,
+      todayLogs,
+      weekly,
+      weeklyDetails,
+      monthly,
+      monthlyDetails,
+      openSessions,
+      flagged,
+    })
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to load summary' })
   }
