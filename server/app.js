@@ -94,6 +94,8 @@ app.get('/api/health', async (_req, res) => {
 
 app.get('/api/summary', async (_req, res) => {
   try {
+    await autoCloseStaleSessions()
+
     const today = todayStr()
     const weekStart = weekStartStr()
     const monthStart = monthStartStr()
@@ -317,9 +319,59 @@ app.delete('/api/logs/:id', async (req, res) => {
 
 const cooldowns = new Map()
 const COOLDOWN_MS = 5000
+const AUTO_CLOSE_MINUTES = 5 * 60
+
+async function autoCloseStaleSessions() {
+  const now = nowStr()
+  const nowDate = new Date(now.replace(' ', 'T'))
+
+  const activeRes = await supabase
+    .from('active_sessions')
+    .select('*')
+    .order('started_at', { ascending: true })
+  if (activeRes.error) throw activeRes.error
+
+  const stale = (activeRes.data || []).filter((row) => {
+    const started = new Date(String(row.started_at || '').replace(' ', 'T'))
+    if (Number.isNaN(started.getTime())) return false
+    const durationMin = (nowDate - started) / 60000
+    return durationMin >= AUTO_CLOSE_MINUTES
+  })
+
+  for (const row of stale) {
+    const durationMin = (nowDate - new Date(row.started_at.replace(' ', 'T'))) / 60000
+    const rounded = Math.round(durationMin * 100) / 100
+
+    const logInsert = await supabase.from('practice_logs').insert({
+      user_id: row.user_id,
+      instrument_id: row.instrument_id,
+      started_at: row.started_at,
+      ended_at: now,
+      duration_minutes: rounded,
+      status: 'auto_closed',
+      source: 'auto_timeout',
+      notes: `Auto-closed after exceeding ${AUTO_CLOSE_MINUTES} minutes without end scan.`,
+    })
+    if (logInsert.error) throw logInsert.error
+
+    const activeDelete = await supabase.from('active_sessions').delete().eq('id', row.id)
+    if (activeDelete.error) throw activeDelete.error
+
+    const scanInsert = await supabase.from('scan_events').insert({
+      raw_payload: 'system:auto-timeout',
+      user_id: row.user_id,
+      instrument_id: row.instrument_id,
+      scanned_at: now,
+      action: 'auto_end',
+    })
+    if (scanInsert.error) throw scanInsert.error
+  }
+}
 
 app.post('/api/scan', async (req, res) => {
   try {
+    await autoCloseStaleSessions()
+
     const { payload } = req.body
     if (!payload) return res.status(400).json({ error: 'payload required' })
 
