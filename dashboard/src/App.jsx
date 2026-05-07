@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import jsQR from 'jsqr'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
@@ -383,25 +383,18 @@ const GRADES = [
 ]
 
 const MEDALS = ['🥇', '🥈', '🥉']
+const LEADERBOARD_MODES = [
+  { id: 'day', label: 'Today' },
+  { id: 'week', label: 'This Week' },
+  { id: 'month', label: 'This Month' },
+]
 
 function getGrade(minutes) {
   return GRADES.find(g => minutes >= g.min) ?? GRADES.at(-1)
 }
 
-function Leaderboard({ weekly, summary }) {
-  // Aggregate total minutes per person (they may play multiple instruments)
-  const map = {}
-  for (const row of weekly) {
-    if (!map[row.user_name]) map[row.user_name] = { name: row.user_name, total: 0, instruments: [], sessions: 0 }
-    map[row.user_name].total       += row.total_minutes
-    map[row.user_name].sessions    += row.session_count
-    map[row.user_name].instruments.push(row.instrument_name)
-  }
-  const ranked = Object.values(map).sort((a, b) => b.total - a.total)
+function Leaderboard({ ranked, awardsByName }) {
   const max    = ranked[0]?.total || 1
-  const awardsByName = new Map(
-    buildKidAwards(summary).map((u) => [u.name, u.earned])
-  )
 
   return (
     <div className="space-y-2.5">
@@ -518,42 +511,21 @@ const AWARDS = [
     description: 'Completed a 30+ minute session this week',
     check: ({ longestSession }) => longestSession >= 30,
   },
-  {
-    id: 'practice-pal',
-    title: 'Practice Pal',
-    emoji: '🤝',
-    description: 'Completed 4+ sessions this week',
-    check: ({ sessionCount }) => sessionCount >= 4,
-  },
-  {
-    id: 'time-keeper',
-    title: 'Time Keeper',
-    emoji: '⏱️',
-    description: 'Reached 2+ total practice hours this week',
-    check: ({ totalMinutes }) => totalMinutes >= 120,
-  },
-  {
-    id: 'instrument-explorer',
-    title: 'Instrument Explorer',
-    emoji: '🎼',
-    description: 'Practiced 2+ instruments this week',
-    check: ({ instrumentCount }) => instrumentCount >= 2,
-  },
 ]
 
-function buildKidAwards(summary) {
-  const weeklyDetails = summary?.weeklyDetails || []
-  const todayLogs = summary?.todayLogs || []
+function buildKidAwards(rows, todayLogs) {
+  const details = rows || []
+  const today = todayLogs || []
   const perUser = new Map()
 
-  for (const row of weeklyDetails) {
+  for (const row of details) {
     const key = row.user_name || 'Unknown'
     if (!perUser.has(key)) {
       perUser.set(key, {
         name: key,
         todayMinutes: 0,
         totalMinutes: 0,
-        weekDaysSet: new Set(),
+        daysSet: new Set(),
         instrumentsSet: new Set(),
         longestSession: 0,
         sessionCount: 0,
@@ -567,18 +539,18 @@ function buildKidAwards(summary) {
     user.longestSession = Math.max(user.longestSession, mins)
     user.totalMinutes += mins
     user.sessionCount += 1
-    if (day !== '—') user.weekDaysSet.add(day)
+    if (day !== '—') user.daysSet.add(day)
     if (row.instrument_name) user.instrumentsSet.add(row.instrument_name)
   }
 
-  for (const row of todayLogs) {
+  for (const row of today) {
     const key = row.user_name || 'Unknown'
     if (!perUser.has(key)) {
       perUser.set(key, {
         name: key,
         todayMinutes: 0,
         totalMinutes: 0,
-        weekDaysSet: new Set(),
+        daysSet: new Set(),
         instrumentsSet: new Set(),
         longestSession: 0,
         sessionCount: 0,
@@ -592,7 +564,7 @@ function buildKidAwards(summary) {
     .map((u) => {
       const profile = {
         ...u,
-        weekDays: u.weekDaysSet.size,
+        weekDays: u.daysSet.size,
         instrumentCount: u.instrumentsSet.size,
       }
       const earned = AWARDS.filter((a) => a.check(profile))
@@ -613,6 +585,7 @@ export default function App() {
   const [instruments,   setInstruments]   = useState([])
   const [expandedWeekly, setExpandedWeekly] = useState(new Set())
   const [showSettings, setShowSettings] = useState(false)
+  const [leaderMode, setLeaderMode] = useState('week')
 
   useEffect(() => { refresh() }, [])
 
@@ -671,6 +644,36 @@ export default function App() {
     setShowAdd(false)
     refresh()
   }
+
+  const leaderboardRanked = useMemo(() => {
+    const sourceRows =
+      leaderMode === 'day' ? (summary?.todayLogs || []).map((row) => ({
+        user_name: row.user_name,
+        instrument_name: row.instrument_name,
+        total_minutes: Number(row.duration_minutes || 0),
+        session_count: 1,
+      })) :
+      leaderMode === 'month' ? (summary?.monthly || []) :
+      (summary?.weekly || [])
+
+    const map = {}
+    for (const row of sourceRows) {
+      if (!map[row.user_name]) map[row.user_name] = { name: row.user_name, total: 0, instruments: [], sessions: 0 }
+      map[row.user_name].total += Number(row.total_minutes || 0)
+      map[row.user_name].sessions += Number(row.session_count || 0)
+      if (row.instrument_name) map[row.user_name].instruments.push(row.instrument_name)
+    }
+
+    return Object.values(map).sort((a, b) => b.total - a.total)
+  }, [summary, leaderMode])
+
+  const leaderboardAwardsByName = useMemo(() => {
+    const detailsRows =
+      leaderMode === 'day' ? (summary?.todayLogs || []) :
+      leaderMode === 'month' ? (summary?.monthlyDetails || []) :
+      (summary?.weeklyDetails || [])
+    return new Map(buildKidAwards(detailsRows, summary?.todayLogs || []).map((u) => [u.name, u.earned]))
+  }, [summary, leaderMode])
 
   return (
     <div className="min-h-screen bg-background/70">
@@ -798,10 +801,31 @@ export default function App() {
 
           {/* Leaderboard */}
           <section>
-            <SectionHeader icon={<Trophy />} title={`Leaderboard — This Week${summary?.weekStart ? ` (${summary.weekStart} →)` : ''}`} />
-            {summary?.weekly?.length > 0
-              ? <Leaderboard weekly={summary.weekly} summary={summary} />
-              : !loading && <EmptyState text="No sessions this week yet." />
+            <SectionHeader
+              icon={<Trophy />}
+              title={`Leaderboard — ${
+                leaderMode === 'day' ? 'Today' : leaderMode === 'week' ? `This Week${summary?.weekStart ? ` (${summary.weekStart} →)` : ''}` : `This Month${summary?.monthStart ? ` (${summary.monthStart} →)` : ''}`
+              }`}
+            />
+            <div className="mb-3 grid grid-cols-3 gap-1.5 rounded-xl bg-muted/60 p-1">
+              {LEADERBOARD_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => setLeaderMode(mode.id)}
+                  className={`rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-wide transition ${
+                    leaderMode === mode.id
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+            {leaderboardRanked.length > 0
+              ? <Leaderboard ranked={leaderboardRanked} awardsByName={leaderboardAwardsByName} />
+              : !loading && <EmptyState text={leaderMode === 'day' ? 'No sessions today yet.' : leaderMode === 'week' ? 'No sessions this week yet.' : 'No sessions this month yet.'} />
             }
           </section>
         </div>

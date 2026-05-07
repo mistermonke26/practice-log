@@ -308,7 +308,26 @@ const LEADERBOARD_MODES = [
   { id: 'week', label: 'This Week' },
   { id: 'month', label: 'This Month' },
 ]
-const AWARD_GUIDE = AWARDS_BY_MODE.month
+const AWARD_GUIDE = [
+  {
+    id: 'daily-spark',
+    title: 'Daily Spark',
+    emoji: '✨',
+    description: 'Practiced at least 15 minutes today',
+  },
+  {
+    id: 'consistency-star',
+    title: 'Consistency Star',
+    emoji: '🌟',
+    description: 'Practiced on 3+ different days this week',
+  },
+  {
+    id: 'focus-hero',
+    title: 'Focus Hero',
+    emoji: '🎯',
+    description: 'Completed a 30+ minute session this week',
+  },
+]
 
 const GRADES_CONFIG = [
   { min: 300, label: 'S', desc: 'Champion', color: 'text-rose-500 border-rose-200 bg-rose-50' },
@@ -842,7 +861,7 @@ export default function KioskPage() {
                 ))}
               </div>
               <div className="space-y-2">
-                {AWARD_GUIDE.slice(0, 4).map(award => (
+                {AWARD_GUIDE.map(award => (
                   <div key={award.id} className="flex items-center gap-2">
                     <span className="text-xs leading-none">{award.emoji}</span>
                     <span className="text-[10px] font-bold text-slate-500" title={award.description}>{award.title}</span>
