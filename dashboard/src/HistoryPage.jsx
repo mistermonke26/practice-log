@@ -36,6 +36,7 @@ function StatusBadge({ status }) {
 export default function HistoryPage() {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [deletingLogId, setDeletingLogId] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const isKiosk = !window.location.pathname.includes('/admin')
 
@@ -52,6 +53,26 @@ export default function HistoryPage() {
   useEffect(() => {
     loadHistory()
   }, [])
+
+  async function deleteLog(log) {
+    if (!log?.id) return
+    const confirmed = window.confirm(
+      `Delete this session for ${log.user_name || 'Unknown'} on ${fmtDate(log.started_at)}? This cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    setDeletingLogId(log.id)
+    try {
+      const res = await fetch(await apiUrl(`/api/logs/${log.id}`), { method: 'DELETE' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.error || 'Failed to delete session')
+      setLogs((prev) => prev.filter((row) => row.id !== log.id))
+    } catch (error) {
+      window.alert(error.message || 'Failed to delete session')
+    } finally {
+      setDeletingLogId(null)
+    }
+  }
 
   if (isKiosk) {
     return (
@@ -173,12 +194,13 @@ export default function HistoryPage() {
                 <TableHead>End</TableHead>
                 <TableHead>Duration</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {!loading && logs.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8 italic font-medium">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8 italic font-medium">
                     No practice history yet.
                   </TableCell>
                 </TableRow>
@@ -193,6 +215,17 @@ export default function HistoryPage() {
                   <TableCell className="text-muted-foreground tabular-nums">{fmtTime(log.ended_at)}</TableCell>
                   <TableCell className="font-medium tabular-nums">{fmtDuration(log.duration_minutes)}</TableCell>
                   <TableCell><StatusBadge status={log.status} /></TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => deleteLog(log)}
+                      disabled={deletingLogId === log.id}
+                    >
+                      {deletingLogId === log.id ? 'Deleting...' : 'Delete'}
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
